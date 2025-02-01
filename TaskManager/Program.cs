@@ -1,4 +1,6 @@
 using ApplicationLayer.Services.TaskServices;
+using DomainLayer;
+using DomainLayer.Delegates;
 using DomainLayer.Models;
 using InfrastructureLayer;
 using InfrastructureLayer.Repositorio.Commons;
@@ -13,22 +15,26 @@ builder.Services.AddDbContext<TaskManagerContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("TaskManagerDB"));
 });
 
+// Register the delegates
+builder.Services.AddScoped<ValidarTareaDelegate>(_ => ValidacionesTarea.ValidarDescripcionYFecha);
+builder.Services.AddScoped<NotificarCambioDelegate>(_ => (Tareas tarea) =>
+{
+    // Simple notification example (console log).
+    // You could replace this with a more sophisticated logging or notification system.
+    Console.WriteLine($"[EVENT] Cambios en Tarea (ID: {tarea.Id}).");
+});
+
+// Register repository and TaskService
 builder.Services.AddScoped<ICommonsProcess<Tareas>, TaskReprository>();
 builder.Services.AddScoped<TaskService>();
+
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-//using (var scope = app.Services.CreateScope())
-//{
-//    var context = scope.ServiceProvider.GetRequiredService<TaskManagerContext>();
-//    context.Database.Migrate();
-//}
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -36,7 +42,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
 
 app.MapControllers();
