@@ -25,7 +25,7 @@ builder.Services.AddScoped<NotificarCambioDelegate>(_ => (Tareas tarea) =>
 });
 
 // Register repository and TaskService
-builder.Services.AddScoped<ICommonsProcess<Tareas>, TaskReprository>();
+builder.Services.AddScoped<ICommonsProcess<Tareas>, TaskRepository>();
 builder.Services.AddScoped<TaskService>();
 
 builder.Services.AddControllers();
