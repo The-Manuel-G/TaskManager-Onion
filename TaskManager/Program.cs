@@ -13,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<TaskManagerContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("TaskManagerDB"));
+    
 });
 
 // Register the delegates

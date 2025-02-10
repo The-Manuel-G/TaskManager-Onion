@@ -4,6 +4,7 @@ using DomainLayer.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Threading.Tasks;
 
 namespace TaskManager.Controllers
@@ -21,19 +22,20 @@ namespace TaskManager.Controllers
             _logger = logger;
         }
 
+        /// <summary>
+        /// Obtiene todas las tareas.
+        /// </summary>
         [HttpGet]
         public async Task<ActionResult<Response<Tareas>>> GetTaskAllAsync()
         {
             try
             {
-                var response = await _service.GetTaskAllAsync(); // ✅ Se llama correctamente
-
-                if (response == null || response.DataList == null || !response.DataList.Any()) // ✅ Corrección de la comparación
+                var response = await _service.GetTaskAllAsync();
+                if (response == null || response.DataList == null || !response.DataList.Any())
                 {
                     _logger.LogWarning("No hay tareas disponibles.");
                     return NotFound("No se encontraron tareas.");
                 }
-
                 return Ok(response);
             }
             catch (Exception ex)
@@ -42,8 +44,6 @@ namespace TaskManager.Controllers
                 return StatusCode(500, "Error interno del servidor.");
             }
         }
-
-
 
         /// <summary>
         /// Obtiene una tarea por ID.
@@ -69,32 +69,94 @@ namespace TaskManager.Controllers
         }
 
         /// <summary>
-        /// Agrega una nueva tarea.
+        /// Agrega una nueva tarea de alta prioridad.
         /// </summary>
-        [HttpPost]
-        public async Task<ActionResult<Response<string>>> AddTaskAllAsync([FromBody] Tareas tarea)
+        [HttpPost("high-priority")]
+        public async Task<ActionResult<Response<string>>> AddHighPriorityTaskAsync([FromBody] string description)
         {
-            if (tarea == null || string.IsNullOrWhiteSpace(tarea.Description))
+            if (string.IsNullOrWhiteSpace(description))
             {
-                _logger.LogWarning("Solicitud inválida: la tarea está vacía.");
-                return BadRequest("La tarea no puede estar vacía.");
+                _logger.LogWarning("Solicitud inválida: la descripción de la tarea está vacía.");
+                return BadRequest("La descripción de la tarea no puede estar vacía.");
             }
 
             try
             {
-                var response = await _service.AddTaskAllAsync(tarea);
+                var response = await _service.AddHighPriorityTaskAsync(description);
                 if (!response.Successful)
                 {
-                    _logger.LogWarning($"Error al agregar la tarea: {response.Message}");
+                    _logger.LogWarning($"Error al agregar la tarea de alta prioridad: {response.Message}");
                     return BadRequest(response.Message);
                 }
 
-                _logger.LogInformation($"Tarea agregada con éxito: {tarea.Id}");
-                return CreatedAtAction(nameof(GetTaskByIdAllAsync), new { id = tarea.Id }, response);
+                _logger.LogInformation($"Tarea de alta prioridad agregada con éxito.");
+                return Ok(response);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error al agregar una tarea: {ex.Message}");
+                _logger.LogError($"Error al agregar una tarea de alta prioridad: {ex.Message}");
+                return StatusCode(500, "Error interno del servidor.");
+            }
+        }
+
+        /// <summary>
+        /// Agrega una nueva tarea de baja prioridad.
+        /// </summary>
+        [HttpPost("low-priority")]
+        public async Task<ActionResult<Response<string>>> AddLowPriorityTaskAsync([FromBody] string description)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                _logger.LogWarning("Solicitud inválida: la descripción de la tarea está vacía.");
+                return BadRequest("La descripción de la tarea no puede estar vacía.");
+            }
+
+            try
+            {
+                var response = await _service.AddLowPriorityTaskAsync(description);
+                if (!response.Successful)
+                {
+                    _logger.LogWarning($"Error al agregar la tarea de baja prioridad: {response.Message}");
+                    return BadRequest(response.Message);
+                }
+
+                _logger.LogInformation($"Tarea de baja prioridad agregada con éxito.");
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error al agregar una tarea de baja prioridad: {ex.Message}");
+                return StatusCode(500, "Error interno del servidor.");
+            }
+        }
+
+        /// <summary>
+        /// Agrega una nueva tarea personalizada.
+        /// </summary>
+        [HttpPost("custom")]
+        public async Task<ActionResult<Response<string>>> AddCustomTaskAsync([FromBody] CustomTaskDTO customTask)
+        {
+            if (customTask == null || string.IsNullOrWhiteSpace(customTask.Description))
+            {
+                _logger.LogWarning("Solicitud inválida: la tarea personalizada está vacía.");
+                return BadRequest("La tarea personalizada no puede estar vacía.");
+            }
+
+            try
+            {
+                var response = await _service.AddCustomTaskAsync(customTask.Description, customTask.DueDate, customTask.AdditionalData);
+                if (!response.Successful)
+                {
+                    _logger.LogWarning($"Error al agregar la tarea personalizada: {response.Message}");
+                    return BadRequest(response.Message);
+                }
+
+                _logger.LogInformation($"Tarea personalizada agregada con éxito.");
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error al agregar una tarea personalizada: {ex.Message}");
                 return StatusCode(500, "Error interno del servidor.");
             }
         }
@@ -160,5 +222,12 @@ namespace TaskManager.Controllers
                 return StatusCode(500, "Error interno del servidor.");
             }
         }
+    }
+
+    public class CustomTaskDTO
+    {
+        public string Description { get; set; }
+        public DateTime DueDate { get; set; }
+        public string AdditionalData { get; set; }
     }
 }
