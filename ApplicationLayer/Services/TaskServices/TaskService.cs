@@ -12,13 +12,12 @@ using DomainLayer;
 using AppTaskFactory = ApplicationLayer.Factories.TaskFactory;
 using InfrastructureLayer.Repositorio;
 using Microsoft.Extensions.DependencyInjection;
+using ApplicationLayer.Optimizations; // Asegúrate de agregar este using
 
 namespace ApplicationLayer.Services.TaskServices
 {
     public class TaskService
     {
-        // OJO: El ICommonsProcess<Tareas> se inyecta para uso SIN cola (GET, etc.)
-        // pero en la cola usaremos uno nuevo re-resuelto con serviceProvider
         private readonly ICommonsProcess<Tareas> _commonsProcess;
         private readonly ITaskQueue _taskQueue;
         private readonly ValidarTareaDelegate _validarTarea;
@@ -44,8 +43,6 @@ namespace ApplicationLayer.Services.TaskServices
             var response = new Response<Tareas>();
             try
             {
-                // Aquí sí puedes usar directamente _commonsProcess,
-                // porque se llama durante la request HTTP
                 response.DataList = await _commonsProcess.GetAllAsync();
                 response.Successful = response.DataList != null && response.DataList.Any();
             }
@@ -96,17 +93,11 @@ namespace ApplicationLayer.Services.TaskServices
                     return response;
                 }
 
-                // Encolamos la operación para que se ejecute con un scope nuevo
                 _taskQueue.Enqueue(async serviceProvider =>
                 {
-                    // 1. Re-resuelve el repositorio (o la misma interfaz ICommonsProcess<Tareas>)
-                    //    usando el nuevo scope
                     var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
-
-                    // 2. Guarda la tarea
                     var result = await scopedProcess.AddAsync(tarea);
 
-                    // 3. Maneja el resultado
                     if (result.IsSuccess)
                     {
                         _logger.LogInformation($"[Queue] Tarea de alta prioridad creada con éxito: {tarea?.Id}");
@@ -118,7 +109,6 @@ namespace ApplicationLayer.Services.TaskServices
                     }
                 });
 
-                // Devolvemos respuesta inmediata
                 response.Successful = true;
                 response.Message = "Tarea agregada a la cola de procesamiento";
             }
@@ -224,8 +214,6 @@ namespace ApplicationLayer.Services.TaskServices
                     return response;
                 }
 
-                // Aquí sí se hace directo (sin cola) porque usualmente Update
-                // se hace dentro de la misma request, pero podrías encolarlo también.
                 var result = await _commonsProcess.UpdateAsync(tarea);
                 response.Successful = result.IsSuccess;
                 response.Message = result.Message;
@@ -271,6 +259,38 @@ namespace ApplicationLayer.Services.TaskServices
             {
                 _logger.LogError($"Error al eliminar la tarea con ID {id}: {e.Message}");
                 response.Errors.Add(e.Message);
+            }
+            return response;
+        }
+
+        /// <summary>
+        /// Nuevo método que calcula el porcentaje de tareas completadas usando memorización.
+        /// </summary>
+        /// <returns>Porcentaje de tareas completadas</returns>
+        public async Task<Response<double>> GetTaskCompletionPercentageAsync()
+        {
+            var response = new Response<double>();
+            try
+            {
+                // Obtiene todas las tareas
+                var tasks = await _commonsProcess.GetAllAsync();
+                if (tasks == null || !tasks.Any())
+                {
+                    response.Successful = false;
+                    response.Message = "No se encontraron tareas";
+                    return response;
+                }
+
+                // Usa la función memorizada para calcular el porcentaje
+                double completionRate = TaskCalculations.CalculateCompletionRate(tasks);
+                response.Successful = true;
+                response.SingleData = completionRate;
+                response.Message = "Porcentaje de tareas completadas calculado correctamente";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error al calcular el porcentaje de tareas completadas: {ex.Message}");
+                response.Errors.Add(ex.Message);
             }
             return response;
         }
