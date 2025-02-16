@@ -15,9 +15,16 @@ namespace DomainLayer.DTO
         public List<string> Errors { get; set; } = new List<string>(0);
     }
 
-    public class Response<T> : Response where T : class
+    public class Response<T> : Response 
     {
         public IEnumerable<T> DataList { get; set; }
         public T SingleData { get; set; }
+        public double Data { get; set; }
     }
+
+
+   
+
+
+
 }
