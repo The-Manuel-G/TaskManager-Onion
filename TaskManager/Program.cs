@@ -3,6 +3,7 @@ using DomainLayer;
 using DomainLayer.Delegates;
 using DomainLayer.Models;
 using InfrastructureLayer;
+using InfrastructureLayer.Repositorio;
 using InfrastructureLayer.Repositorio.Commons;
 using InfrastructureLayer.Repositorio.TaskReprository;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,8 @@ builder.Services.AddScoped<NotificarCambioDelegate>(_ => (Tareas tarea) =>
     // You could replace this with a more sophisticated logging or notification system.
     Console.WriteLine($"[EVENT] Cambios en Tarea (ID: {tarea.Id}).");
 });
+
+builder.Services.AddSingleton<ITaskQueue, TaskQueue>();
 
 // Register repository and TaskService
 builder.Services.AddScoped<ICommonsProcess<Tareas>, TaskRepository>();

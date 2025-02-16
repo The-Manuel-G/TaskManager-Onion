@@ -8,23 +8,32 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using DomainLayer;
+using AppTaskFactory = ApplicationLayer.Factories.TaskFactory;
+using InfrastructureLayer.Repositorio;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ApplicationLayer.Services.TaskServices
 {
     public class TaskService
     {
+        // OJO: El ICommonsProcess<Tareas> se inyecta para uso SIN cola (GET, etc.)
+        // pero en la cola usaremos uno nuevo re-resuelto con serviceProvider
         private readonly ICommonsProcess<Tareas> _commonsProcess;
+        private readonly ITaskQueue _taskQueue;
         private readonly ValidarTareaDelegate _validarTarea;
         private readonly NotificarCambioDelegate _notificarCambio;
         private readonly ILogger<TaskService> _logger;
 
         public TaskService(
             ICommonsProcess<Tareas> commonsProcess,
+            ITaskQueue taskQueue,
             ValidarTareaDelegate validarTarea,
             NotificarCambioDelegate notificarCambio,
             ILogger<TaskService> logger)
         {
             _commonsProcess = commonsProcess;
+            _taskQueue = taskQueue;
             _validarTarea = validarTarea;
             _notificarCambio = notificarCambio;
             _logger = logger;
@@ -33,9 +42,10 @@ namespace ApplicationLayer.Services.TaskServices
         public async Task<Response<Tareas>> GetTaskAllAsync()
         {
             var response = new Response<Tareas>();
-
             try
             {
+                // Aquí sí puedes usar directamente _commonsProcess,
+                // porque se llama durante la request HTTP
                 response.DataList = await _commonsProcess.GetAllAsync();
                 response.Successful = response.DataList != null && response.DataList.Any();
             }
@@ -44,7 +54,6 @@ namespace ApplicationLayer.Services.TaskServices
                 _logger.LogError($"Error al obtener todas las tareas: {e.Message}");
                 response.Errors.Add(e.Message);
             }
-
             return response;
         }
 
@@ -78,7 +87,7 @@ namespace ApplicationLayer.Services.TaskServices
             var response = new Response<string>();
             try
             {
-                var tarea = ApplicationLayer.Factories.TaskFactory.CreateHighPriorityTask(description);
+                var tarea = AppTaskFactory.CreateHighPriorityTask(description);
 
                 if (!_validarTarea(tarea))
                 {
@@ -87,15 +96,31 @@ namespace ApplicationLayer.Services.TaskServices
                     return response;
                 }
 
-                var result = await _commonsProcess.AddAsync(tarea);
-                response.Successful = result.IsSuccess;
-                response.Message = result.Message;
-
-                if (result.IsSuccess)
+                // Encolamos la operación para que se ejecute con un scope nuevo
+                _taskQueue.Enqueue(async serviceProvider =>
                 {
-                    _logger.LogInformation($"Tarea de alta prioridad creada con éxito: {tarea.Id}");
-                    _notificarCambio(tarea);
-                }
+                    // 1. Re-resuelve el repositorio (o la misma interfaz ICommonsProcess<Tareas>)
+                    //    usando el nuevo scope
+                    var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
+
+                    // 2. Guarda la tarea
+                    var result = await scopedProcess.AddAsync(tarea);
+
+                    // 3. Maneja el resultado
+                    if (result.IsSuccess)
+                    {
+                        _logger.LogInformation($"[Queue] Tarea de alta prioridad creada con éxito: {tarea?.Id}");
+                        _notificarCambio(tarea);
+                    }
+                    else
+                    {
+                        _logger.LogError($"[Queue] Error al agregar la tarea de alta prioridad: {result.Message}");
+                    }
+                });
+
+                // Devolvemos respuesta inmediata
+                response.Successful = true;
+                response.Message = "Tarea agregada a la cola de procesamiento";
             }
             catch (Exception e)
             {
@@ -110,7 +135,7 @@ namespace ApplicationLayer.Services.TaskServices
             var response = new Response<string>();
             try
             {
-                var tarea = ApplicationLayer.Factories.TaskFactory.CreateLowPriorityTask(description);
+                var tarea = AppTaskFactory.CreateLowPriorityTask(description);
 
                 if (!_validarTarea(tarea))
                 {
@@ -119,15 +144,24 @@ namespace ApplicationLayer.Services.TaskServices
                     return response;
                 }
 
-                var result = await _commonsProcess.AddAsync(tarea);
-                response.Successful = result.IsSuccess;
-                response.Message = result.Message;
-
-                if (result.IsSuccess)
+                _taskQueue.Enqueue(async serviceProvider =>
                 {
-                    _logger.LogInformation($"Tarea de baja prioridad creada con éxito: {tarea.Id}");
-                    _notificarCambio(tarea);
-                }
+                    var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
+                    var result = await scopedProcess.AddAsync(tarea);
+
+                    if (result.IsSuccess)
+                    {
+                        _logger.LogInformation($"[Queue] Tarea de baja prioridad creada con éxito: {tarea?.Id}");
+                        _notificarCambio(tarea);
+                    }
+                    else
+                    {
+                        _logger.LogError($"[Queue] Error al agregar la tarea de baja prioridad: {result.Message}");
+                    }
+                });
+
+                response.Successful = true;
+                response.Message = "Tarea agregada a la cola de procesamiento";
             }
             catch (Exception e)
             {
@@ -142,7 +176,7 @@ namespace ApplicationLayer.Services.TaskServices
             var response = new Response<string>();
             try
             {
-                var tarea = ApplicationLayer.Factories.TaskFactory.CreateCustomTask(description, dueDate, additionalData);
+                var tarea = AppTaskFactory.CreateCustomTask(description, dueDate, additionalData);
 
                 if (!_validarTarea(tarea))
                 {
@@ -151,15 +185,24 @@ namespace ApplicationLayer.Services.TaskServices
                     return response;
                 }
 
-                var result = await _commonsProcess.AddAsync(tarea);
-                response.Successful = result.IsSuccess;
-                response.Message = result.Message;
-
-                if (result.IsSuccess)
+                _taskQueue.Enqueue(async serviceProvider =>
                 {
-                    _logger.LogInformation($"Tarea personalizada creada con éxito: {tarea.Id}");
-                    _notificarCambio(tarea);
-                }
+                    var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
+                    var result = await scopedProcess.AddAsync(tarea);
+
+                    if (result.IsSuccess)
+                    {
+                        _logger.LogInformation($"[Queue] Tarea personalizada creada con éxito: {tarea?.Id}");
+                        _notificarCambio(tarea);
+                    }
+                    else
+                    {
+                        _logger.LogError($"[Queue] Error al agregar la tarea personalizada: {result.Message}");
+                    }
+                });
+
+                response.Successful = true;
+                response.Message = "Tarea agregada a la cola de procesamiento";
             }
             catch (Exception e)
             {
@@ -181,19 +224,21 @@ namespace ApplicationLayer.Services.TaskServices
                     return response;
                 }
 
+                // Aquí sí se hace directo (sin cola) porque usualmente Update
+                // se hace dentro de la misma request, pero podrías encolarlo también.
                 var result = await _commonsProcess.UpdateAsync(tarea);
                 response.Successful = result.IsSuccess;
                 response.Message = result.Message;
 
                 if (result.IsSuccess)
                 {
-                    _logger.LogInformation($"Tarea {tarea.Id} actualizada con éxito.");
+                    _logger.LogInformation($"Tarea {tarea?.Id} actualizada con éxito.");
                     _notificarCambio(tarea);
                 }
             }
             catch (Exception e)
             {
-                _logger.LogError($"Error al actualizar la tarea {tarea.Id}: {e.Message}");
+                _logger.LogError($"Error al actualizar la tarea {tarea?.Id}: {e.Message}");
                 response.Errors.Add(e.Message);
             }
             return response;
