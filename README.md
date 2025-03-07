@@ -28,10 +28,10 @@ dotnet tool install --global dotnet-ef
 ## 📌 **1️⃣ Clonar el Proyecto**
 Ejecuta en la terminal:
 ```powershell
-git clone https://github.com/TuRepositorio/TaskManager.git
+git clone https://github.com/The-Manuel-G/TaskManager-Onion.git
 cd TaskManager
 ```
-
+**NoTa**:Asegurate de reconstruir la solucion  cuando clones  el proyecto 
 ---
 
 ## 📌 **2️⃣ Configurar la Base de Datos**
