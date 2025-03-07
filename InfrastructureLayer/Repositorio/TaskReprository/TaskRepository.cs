@@ -27,14 +27,14 @@ namespace InfrastructureLayer.Repositorio.TaskReprository
 
         public async Task<IEnumerable<Tareas>> GetAllAsync()
         {
-            return await _context.Tarea.ToListAsync();
+            return await _context.Tareas.ToListAsync(); // 🔹 Se corrigió de `_context.Tarea` a `_context.Tareas`
         }
 
         public async Task<Tareas> GetIdAsync(int id)
         {
             if (id <= 0) throw new ArgumentException("ID inválido", nameof(id));
 
-            return await _context.Tarea.FirstOrDefaultAsync(x => x.Id == id);
+            return await _context.Tareas.FirstOrDefaultAsync(x => x.Id == id); // 🔹 Se corrigió `_context.Tarea`
         }
 
         public async Task<(bool IsSuccess, string Message)> AddAsync(Tareas entry)
@@ -48,16 +48,16 @@ namespace InfrastructureLayer.Repositorio.TaskReprository
                     return (false, "La tarea no pasó la validación.");
                 }
 
-                bool exists = await _context.Tarea.AnyAsync(x => x.Description == entry.Description);
+                bool exists = await _context.Tareas.AnyAsync(x => x.Description == entry.Description);
                 if (exists)
                 {
                     return (false, "Ya existe una tarea con ese nombre...");
                 }
 
-                await _context.Tarea.AddAsync(entry);
+                await _context.Tareas.AddAsync(entry);
                 await _context.SaveChangesAsync();
 
-                _notificarCambio?.Invoke(entry); // ✅ Se usa `?.Invoke()` para evitar errores si es `null`
+                _notificarCambio?.Invoke(entry);
 
                 return (true, "La tarea se guardó correctamente...");
             }
@@ -78,10 +78,10 @@ namespace InfrastructureLayer.Repositorio.TaskReprository
                     return (false, "La tarea no pasó la validación.");
                 }
 
-                _context.Tarea.Update(entry);
+                _context.Tareas.Update(entry);
                 await _context.SaveChangesAsync();
 
-                _notificarCambio?.Invoke(entry); // ✅ Se usa `?.Invoke()`
+                _notificarCambio?.Invoke(entry);
 
                 return (true, "La tarea se actualizó correctamente...");
             }
@@ -97,16 +97,16 @@ namespace InfrastructureLayer.Repositorio.TaskReprository
 
             try
             {
-                var tarea = await _context.Tarea.FindAsync(id);
+                var tarea = await _context.Tareas.FindAsync(id);
                 if (tarea == null)
                 {
                     return (false, "No se encontró la tarea...");
                 }
 
-                _context.Tarea.Remove(tarea);
+                _context.Tareas.Remove(tarea);
                 await _context.SaveChangesAsync();
 
-                _notificarCambio?.Invoke(tarea); // ✅ Se usa `?.Invoke()`
+                _notificarCambio?.Invoke(tarea);
 
                 return (true, "La tarea se eliminó correctamente...");
             }

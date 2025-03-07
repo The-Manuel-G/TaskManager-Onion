@@ -5,8 +5,7 @@ using DomainLayer.Delegates;
 using InfrastructureLayer.Repositorio.Commons;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
 using DomainLayer;
 using AppTaskFactory = ApplicationLayer.Factories.TaskFactory;
