@@ -1,10 +1,11 @@
 ﻿using DomainLayer.DTO;
 using System.Threading.Tasks;
-using 
 
-namespace ApplicationLayer.Services.Auth
+using System.Text.Json.Serialization;
+
+namespace ApplicationLayer.Services.AuthServices
 {
-   
+
     public interface IAuthService
     {
         AuthenticateResponse Authenticate(AuthenticateRequest request);
@@ -16,4 +17,12 @@ namespace ApplicationLayer.Services.Auth
         AuthenticateResponse RegisterUser(string username, string password, string email);
         Task<AuthenticateResponse> RegisterUserAsync(string username, string password, string email);
     }
-}
+
+    
+
+
+      
+    }
+
+
+

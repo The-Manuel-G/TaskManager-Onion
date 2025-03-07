@@ -1,8 +1,9 @@
 ﻿using DomainLayer.DTO;
 using ApplicationLayer.Services;
 using Microsoft.AspNetCore.Mvc;
-using ApplicationLayer.Services.Auth;
+using ApplicationLayer.Services.AuthServices;
 using Microsoft.AspNetCore.Authorization;
+
 
 namespace TaskManager.Controllers
 {

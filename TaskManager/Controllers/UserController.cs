@@ -1,13 +1,14 @@
-﻿using InfrastructureLayer.Repositorio;
+﻿using InfrastructureLayer.Repositorio.UserRepository;
 using Microsoft.AspNetCore.Mvc;
 using DomainLayer.Models;
 using Microsoft.AspNetCore.Authorization;
+using System.Threading.Tasks;
 
 namespace TaskManager.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")] // Ejemplo: solo Admin puede gestionar usuarios
+    [Authorize(Roles = "Admin")] // Solo Admin puede gestionar usuarios
     public class UserController : ControllerBase
     {
         private readonly IUserRepository _userRepository;
@@ -18,46 +19,50 @@ namespace TaskManager.Controllers
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        public async Task<IActionResult> GetById(int id)
         {
-            var user = _userRepository.GetById(id);
-            if (user == null) return NotFound();
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null) return NotFound(new { message = "Usuario no encontrado" });
             return Ok(user);
         }
 
         [HttpPost]
-        public IActionResult Create(User user)
+        public async Task<IActionResult> Create([FromBody] User user)
         {
-            _userRepository.Add(user);
-            _userRepository.SaveChangesAsync().Wait();
+            if (user == null) return BadRequest(new { message = "Datos de usuario inválidos" });
+
+            await _userRepository.AddAsync(user);
+            await _userRepository.SaveChangesAsync();
+
             return CreatedAtAction(nameof(GetById), new { id = user.Id }, user);
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, User userData)
+        public async Task<IActionResult> Update(int id, [FromBody] User userData)
         {
-            var user = _userRepository.GetById(id);
-            if (user == null) return NotFound();
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null) return NotFound(new { message = "Usuario no encontrado" });
 
             user.FirstName = userData.FirstName;
             user.LastName = userData.LastName;
             user.Email = userData.Email;
             user.Username = userData.Username;
-            // etc.
 
             _userRepository.Update(user);
-            _userRepository.SaveChangesAsync().Wait();
+            await _userRepository.SaveChangesAsync();
+
             return Ok(user);
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int id)
         {
-            var user = _userRepository.GetById(id);
-            if (user == null) return NotFound();
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null) return NotFound(new { message = "Usuario no encontrado" });
 
             _userRepository.Delete(user);
-            _userRepository.SaveChangesAsync().Wait();
+            await _userRepository.SaveChangesAsync();
+
             return NoContent();
         }
     }

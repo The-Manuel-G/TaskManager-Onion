@@ -1,15 +1,17 @@
-﻿using DomainLayer.DTO;
+﻿using ApplicationLayer.Services.AuthServices;
+using DomainLayer.DTO;
 using DomainLayer.Models;
 using InfrastructureLayer.Repositorio;
 using InfrastructureLayer.Repositorio.UserRepository;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
-namespace ApplicationLayer.Services.Auth
+namespace ApplicationLayer.Services
 {
     public class AuthService : IAuthService
     {
@@ -29,35 +31,20 @@ namespace ApplicationLayer.Services.Auth
 
         public AuthenticateResponse Authenticate(AuthenticateRequest request)
         {
-            throw new NotImplementedException();
+            return AuthenticateAsync(request).Result;
         }
 
         public async Task<AuthenticateResponse> AuthenticateAsync(AuthenticateRequest request)
         {
-            // 1. Verify user
             var user = await _userRepository.GetByUsernameAsync(request.Username!);
             if (user == null)
-            {
-                return new AuthenticateResponse
-                {
-                    StatusCode = 401
-                };
-            }
+                return new AuthenticateResponse { StatusCode = 401 };
 
-            // 2. Validate password (ensure PasswordHash is not null)
-            if (string.IsNullOrEmpty(user.PasswordHash) ||
-                !BCrypt.Net.BCrypt.Verify(request.Password!, user.PasswordHash))
-            {
-                return new AuthenticateResponse
-                {
-                    StatusCode = 401
-                };
-            }
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password!, user.PasswordHash!);
+            if (!isPasswordValid)
+                return new AuthenticateResponse { StatusCode = 401 };
 
-            // 3. Generate JWT token
             var jwtToken = GenerateJwtToken(user);
-
-            // 4. Generate refresh token and save it
             var refreshToken = GenerateRefreshToken(user.Id);
             await _refreshTokenRepository.AddAsync(refreshToken);
             await _refreshTokenRepository.SaveChangesAsync();
@@ -80,39 +67,23 @@ namespace ApplicationLayer.Services.Auth
 
         public AuthenticateResponse RefreshToken(string refreshToken)
         {
-            throw new NotImplementedException();
+            return RefreshTokenAsync(refreshToken).Result;
         }
 
         public async Task<AuthenticateResponse> RefreshTokenAsync(string refreshToken)
         {
             var existingRefresh = await _refreshTokenRepository.GetByTokenAsync(refreshToken);
             if (existingRefresh == null || existingRefresh.IsExpired)
-            {
-                return new DomainLayer.DTO.AuthenticateResponse
-                {
-                    StatusCode = 401,
-                    JWTToken = null
-                };
-            }
+                return new AuthenticateResponse { StatusCode = 401 };
 
-            // Get user
             var user = await _userRepository.GetByIdAsync(existingRefresh.UserId);
             if (user == null)
-            {
-                return new DomainLayer.DTO.AuthenticateResponse
-                {
-                    StatusCode = 401
-                };
-            }
+                return new AuthenticateResponse { StatusCode = 401 };
 
-            // Generate new JWT
             var jwtToken = GenerateJwtToken(user);
-
-            // Generate a new refresh token
             var newRefreshToken = GenerateRefreshToken(user.Id);
 
-            // Remove old token and save the new one
-            await _refreshTokenRepository.DeleteAsync(existingRefresh);
+            _refreshTokenRepository.Delete(existingRefresh);
             await _refreshTokenRepository.AddAsync(newRefreshToken);
             await _refreshTokenRepository.SaveChangesAsync();
 
@@ -134,21 +105,14 @@ namespace ApplicationLayer.Services.Auth
 
         public AuthenticateResponse RegisterUser(string username, string password, string email)
         {
-            throw new NotImplementedException();
+            return RegisterUserAsync(username, password, email).Result;
         }
 
         public async Task<AuthenticateResponse> RegisterUserAsync(string username, string password, string email)
         {
-            // Check that the user doesn't already exist
             var existing = await _userRepository.GetByUsernameAsync(username);
             if (existing != null)
-            {
-                return new DomainLayer.DTO.AuthenticateResponse
-                {
-                    StatusCode = 400,
-                    JWTToken = null
-                };
-            }
+                return new AuthenticateResponse { StatusCode = 400 };
 
             var newUser = new User
             {
@@ -162,27 +126,19 @@ namespace ApplicationLayer.Services.Auth
             await _userRepository.AddAsync(newUser);
             await _userRepository.SaveChangesAsync();
 
-            // Immediately log in the newly registered user
-            var request = new AuthenticateRequest
-            {
-                Username = username,
-                Password = password
-            };
-
-            return await AuthenticateAsync(request);
+            return await AuthenticateAsync(new AuthenticateRequest { Username = username, Password = password });
         }
 
         private string GenerateJwtToken(User user)
         {
-            // Recommended to extract expiration time to configuration as well
             var secretKey = _configuration["JwtSettings:SecretKey"];
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!));
 
             var claims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim(ClaimTypes.Name, user.Username ?? string.Empty)
-                };
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Name, user.Username ?? "")
+            };
 
             if (user.Roles != null)
             {
@@ -193,8 +149,6 @@ namespace ApplicationLayer.Services.Auth
             }
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            // Expiration can be extracted from configuration (e.g., JwtSettings:ExpirationHours)
             var tokenDescriptor = new JwtSecurityToken(
                 issuer: null,
                 audience: null,
@@ -216,5 +170,5 @@ namespace ApplicationLayer.Services.Auth
             };
         }
     }
-}
 
+}

@@ -1,20 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using DomainLayer.Models;
 
 namespace InfrastructureLayer.Repositorio
 {
-        public interface IRefreshTokenRepository
-        {
-        Task<RefreshToken?> GetByTokenAsync(string token);
-        Task AddAsync(RefreshToken token);
-        Task DeleteAsync(RefreshToken token);
+    public interface IRefreshTokenRepository
+    {
+        RefreshToken? GetByToken(string token);
+        Task<RefreshToken?> GetByTokenAsync(string refreshToken); // Fixed return type
+        void Add(RefreshToken refreshToken);
+        Task AddAsync(RefreshToken refreshToken);
+        void Delete(RefreshToken refreshToken);
         Task SaveChangesAsync();
-
     }
-
-
 }

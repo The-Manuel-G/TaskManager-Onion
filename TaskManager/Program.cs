@@ -1,28 +1,30 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+ï»¿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using ApplicationLayer.Services.TaskServices;
 using DomainLayer.Delegates;
 using DomainLayer.Models;
-
 using InfrastructureLayer.Repositorio;
 using InfrastructureLayer.Repositorio.Commons;
 using InfrastructureLayer.Repositorio.TaskReprository;
-using Microsoft.OpenApi.Models;
-using ApplicationLayer.Services.Auth;
 using InfrastructureLayer.Repositorio.UserRepository;
-using DomainLayer;
 using InfrastructureLayer;
-using ApplicationLayer.Services.Auth;
+using ApplicationLayer.Services.AuthServices;
+using ApplicationLayer.Services;
+using Microsoft.OpenApi.Models;
+using DomainLayer;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurar JWT
+// 1. Configurar JWT de forma segura
 var secretKey = builder.Configuration["JwtSettings:SecretKey"];
-// Sugerencia: usar directamente el indexador en vez de .GetSection(...).Value
+if (string.IsNullOrEmpty(secretKey))
+{
+    throw new Exception("JWT SecretKey is not configured. Check appsettings.json");
+}
 
-var key = Encoding.UTF8.GetBytes(secretKey!);
+var key = Encoding.UTF8.GetBytes(secretKey);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -31,8 +33,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    // En entornos de producción, se recomienda exigir HTTPS
-    options.RequireHttpsMetadata = false;
+    options.RequireHttpsMetadata = false; // En producciÃ³n, poner en true
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -44,10 +45,15 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// 2. Configurar DbContext
+// 2. Configurar DbContext y asegurar que estÃ¡ disponible para `dotnet ef`
 builder.Services.AddDbContext<TaskManagerContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("TaskManagerDB"));
+    var connectionString = builder.Configuration.GetConnectionString("TaskManagerDB");
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        throw new Exception("Database connection string is not configured.");
+    }
+    options.UseSqlServer(connectionString);
 });
 
 // 3. Registrar Delegates
@@ -63,11 +69,22 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICommonsProcess<Tareas>, TaskRepository>();
 builder.Services.AddScoped<TaskService>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>(); // âœ… Se moviÃ³ para asegurar que estÃ© correctamente registrado
 
-// 5. Agregar controladores y configuración de Swagger
+// 5. Configurar CORS (Opcional pero recomendado)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+});
+
+// 6. Agregar controladores y configuraciÃ³n de Swagger
 builder.Services.AddControllers();
-
-// Explorador de endpoints + Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -76,28 +93,25 @@ builder.Services.AddSwaggerGen(c =>
         Title = "Task Manager API",
         Version = "v1"
     });
-    // Opcional: si deseas integrar JWT en SwaggerUI, puedes configurar aquí
 });
 
-// Construir la aplicación
+// Construir la aplicaciÃ³n
 var app = builder.Build();
 
-// 6. Configurar Middleware
+// 7. Configurar Middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Redirección a HTTPS
+app.UseCors("AllowAll"); // Habilitar CORS
+
 app.UseHttpsRedirection();
 
-// Autenticación y autorización
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Mapear controladores
 app.MapControllers();
 
-// Correr la aplicación
 app.Run();

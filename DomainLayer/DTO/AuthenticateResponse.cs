@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace DomainLayer.DTO
 {
-    class AuthenticateResponse
+public class AuthenticateResponse
     {
 
      
