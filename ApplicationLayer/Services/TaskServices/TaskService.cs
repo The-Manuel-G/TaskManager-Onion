@@ -5,13 +5,14 @@ using DomainLayer.Delegates;
 using InfrastructureLayer.Repositorio.Commons;
 using System;
 using System.Collections.Generic;
-
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using DomainLayer;
-using AppTaskFactory = ApplicationLayer.Factories.TaskFactory;
-using InfrastructureLayer.Repositorio;
 using Microsoft.Extensions.DependencyInjection;
-using ApplicationLayer.Optimizations; // Asegúrate de agregar este using
+using ApplicationLayer.Optimizations;
+using InfrastructureLayer.Repositorio.UserRepository;
+using DomainLayer;
+using TaskFactory = ApplicationLayer.Factories.TaskFactory;
 
 namespace ApplicationLayer.Services.TaskServices
 {
@@ -19,6 +20,7 @@ namespace ApplicationLayer.Services.TaskServices
     {
         private readonly ICommonsProcess<Tareas> _commonsProcess;
         private readonly ITaskQueue _taskQueue;
+        private readonly IUserRepository _userRepository;
         private readonly ValidarTareaDelegate _validarTarea;
         private readonly NotificarCambioDelegate _notificarCambio;
         private readonly ILogger<TaskService> _logger;
@@ -26,17 +28,24 @@ namespace ApplicationLayer.Services.TaskServices
         public TaskService(
             ICommonsProcess<Tareas> commonsProcess,
             ITaskQueue taskQueue,
+            IUserRepository userRepository,
             ValidarTareaDelegate validarTarea,
             NotificarCambioDelegate notificarCambio,
             ILogger<TaskService> logger)
         {
             _commonsProcess = commonsProcess;
             _taskQueue = taskQueue;
+            _userRepository = userRepository;
             _validarTarea = validarTarea;
             _notificarCambio = notificarCambio;
             _logger = logger;
         }
 
+        private async Task<bool> UserExists(int userId)
+        {
+            return await _userRepository.GetByIdAsync(userId) != null;
+        }
+        // Métodos de consulta (lectura)
         public async Task<Response<Tareas>> GetTaskAllAsync()
         {
             var response = new Response<Tareas>();
@@ -60,7 +69,6 @@ namespace ApplicationLayer.Services.TaskServices
             {
                 var result = await _commonsProcess.GetIdAsync(id);
                 response.Successful = result != null;
-
                 if (response.Successful)
                 {
                     response.SingleData = result;
@@ -78,129 +86,73 @@ namespace ApplicationLayer.Services.TaskServices
             return response;
         }
 
-        public async Task<Response<string>> AddHighPriorityTaskAsync(string description)
+        // Método privado para verificar la existencia del usuario
+
+
+        // Método privado común para agregar una tarea
+        public async Task<Response<string>> AddTaskAsync(Tareas tarea)
         {
             var response = new Response<string>();
             try
             {
-                var tarea = AppTaskFactory.CreateHighPriorityTask(description);
+                if (!await UserExists(tarea.UserId))
+                {
+                    response.Successful = false;
+                    response.Message = "El usuario especificado no existe.";
+                    return response;
+                }
 
                 if (!_validarTarea(tarea))
                 {
                     response.Successful = false;
-                    response.Message = "La tarea no es válida";
+                    response.Message = "La tarea no es válida.";
                     return response;
                 }
 
-                _taskQueue.Enqueue(async serviceProvider =>
+                var result = await _commonsProcess.AddAsync(tarea);
+                if (result.IsSuccess)
                 {
-                    var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
-                    var result = await scopedProcess.AddAsync(tarea);
-
-                    if (result.IsSuccess)
-                    {
-                        _logger.LogInformation($"[Queue] Tarea de alta prioridad creada con éxito: {tarea?.Id}");
-                        _notificarCambio(tarea);
-                    }
-                    else
-                    {
-                        _logger.LogError($"[Queue] Error al agregar la tarea de alta prioridad: {result.Message}");
-                    }
-                });
-
-                response.Successful = true;
-                response.Message = "Tarea agregada a la cola de procesamiento";
+                    _logger.LogInformation($"Tarea creada con éxito: {tarea?.Id}");
+                    _notificarCambio(tarea);
+                    response.Successful = true;
+                    response.Message = "Tarea creada con éxito.";
+                }
+                else
+                {
+                    _logger.LogError($"Error al agregar la tarea: {result.Message}");
+                    response.Successful = false;
+                    response.Message = result.Message;
+                }
             }
             catch (Exception e)
             {
-                _logger.LogError($"Error al agregar una tarea de alta prioridad: {e.Message}");
+                _logger.LogError($"Error inesperado: {e.Message}");
+                response.Successful = false;
                 response.Errors.Add(e.Message);
             }
             return response;
         }
 
-        public async Task<Response<string>> AddLowPriorityTaskAsync(string description)
+        // Métodos para agregar tareas utilizando el patrón de fábrica
+        public async Task<Response<string>> AddHighPriorityTaskAsync(string description, int userId)
         {
-            var response = new Response<string>();
-            try
-            {
-                var tarea = AppTaskFactory.CreateLowPriorityTask(description);
-
-                if (!_validarTarea(tarea))
-                {
-                    response.Successful = false;
-                    response.Message = "La tarea no es válida";
-                    return response;
-                }
-
-                _taskQueue.Enqueue(async serviceProvider =>
-                {
-                    var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
-                    var result = await scopedProcess.AddAsync(tarea);
-
-                    if (result.IsSuccess)
-                    {
-                        _logger.LogInformation($"[Queue] Tarea de baja prioridad creada con éxito: {tarea?.Id}");
-                        _notificarCambio(tarea);
-                    }
-                    else
-                    {
-                        _logger.LogError($"[Queue] Error al agregar la tarea de baja prioridad: {result.Message}");
-                    }
-                });
-
-                response.Successful = true;
-                response.Message = "Tarea agregada a la cola de procesamiento";
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Error al agregar una tarea de baja prioridad: {e.Message}");
-                response.Errors.Add(e.Message);
-            }
-            return response;
+            var tarea = TaskFactory.CreateHighPriorityTask(description, userId);
+            return await AddTaskAsync(tarea);
         }
 
-        public async Task<Response<string>> AddCustomTaskAsync(string description, DateTime dueDate, string additionalData)
+        public async Task<Response<string>> AddLowPriorityTaskAsync(string description, int userId)
         {
-            var response = new Response<string>();
-            try
-            {
-                var tarea = AppTaskFactory.CreateCustomTask(description, dueDate, additionalData);
-
-                if (!_validarTarea(tarea))
-                {
-                    response.Successful = false;
-                    response.Message = "La tarea no es válida";
-                    return response;
-                }
-
-                _taskQueue.Enqueue(async serviceProvider =>
-                {
-                    var scopedProcess = serviceProvider.GetRequiredService<ICommonsProcess<Tareas>>();
-                    var result = await scopedProcess.AddAsync(tarea);
-
-                    if (result.IsSuccess)
-                    {
-                        _logger.LogInformation($"[Queue] Tarea personalizada creada con éxito: {tarea?.Id}");
-                        _notificarCambio(tarea);
-                    }
-                    else
-                    {
-                        _logger.LogError($"[Queue] Error al agregar la tarea personalizada: {result.Message}");
-                    }
-                });
-
-                response.Successful = true;
-                response.Message = "Tarea agregada a la cola de procesamiento";
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Error al agregar una tarea personalizada: {e.Message}");
-                response.Errors.Add(e.Message);
-            }
-            return response;
+            var tarea = TaskFactory.CreateLowPriorityTask(description, userId);
+            return await AddTaskAsync(tarea);
         }
 
+        public async Task<Response<string>> AddCustomTaskAsync(string description, DateTime dueDate, string additionalData, int userId)
+        {
+            var tarea = TaskFactory.CreateCustomTask(description, dueDate, additionalData, userId);
+            return await AddTaskAsync(tarea);
+        }
+
+        // Actualización de tareas
         public async Task<Response<string>> UpdateTaskAllAsync(Tareas tarea)
         {
             var response = new Response<string>();
@@ -209,7 +161,7 @@ namespace ApplicationLayer.Services.TaskServices
                 if (!_validarTarea(tarea))
                 {
                     response.Successful = false;
-                    response.Message = "La tarea no es válida";
+                    response.Message = "La tarea no es válida.";
                     return response;
                 }
 
@@ -231,6 +183,7 @@ namespace ApplicationLayer.Services.TaskServices
             return response;
         }
 
+        // Eliminación de tareas
         public async Task<Response<string>> DeleteTaskAllAsync(int id)
         {
             var response = new Response<string>();
@@ -240,7 +193,7 @@ namespace ApplicationLayer.Services.TaskServices
                 if (tareaEliminada == null)
                 {
                     response.Successful = false;
-                    response.Message = "No se encontró la tarea para eliminar";
+                    response.Message = "No se encontró la tarea para eliminar.";
                     return response;
                 }
 
@@ -258,38 +211,6 @@ namespace ApplicationLayer.Services.TaskServices
             {
                 _logger.LogError($"Error al eliminar la tarea con ID {id}: {e.Message}");
                 response.Errors.Add(e.Message);
-            }
-            return response;
-        }
-
-        /// <summary>
-        /// Nuevo método que calcula el porcentaje de tareas completadas usando memorización.
-        /// </summary>
-        /// <returns>Porcentaje de tareas completadas</returns>
-        public async Task<Response<double>> GetTaskCompletionPercentageAsync()
-        {
-            var response = new Response<double>();
-            try
-            {
-                // Obtiene todas las tareas
-                var tasks = await _commonsProcess.GetAllAsync();
-                if (tasks == null || !tasks.Any())
-                {
-                    response.Successful = false;
-                    response.Message = "No se encontraron tareas";
-                    return response;
-                }
-
-                // Usa la función memorizada para calcular el porcentaje
-                double completionRate = TaskCalculations.CalculateCompletionRate(tasks);
-                response.Successful = true;
-                response.SingleData = completionRate;
-                response.Message = "Porcentaje de tareas completadas calculado correctamente";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error al calcular el porcentaje de tareas completadas: {ex.Message}");
-                response.Errors.Add(ex.Message);
             }
             return response;
         }

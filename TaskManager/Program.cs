@@ -14,6 +14,7 @@ using ApplicationLayer.Services.AuthServices;
 using ApplicationLayer.Services;
 using Microsoft.OpenApi.Models;
 using DomainLayer;
+using InfrastructureLayer.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,8 @@ if (string.IsNullOrEmpty(secretKey))
 }
 
 var key = Encoding.UTF8.GetBytes(secretKey);
+
+
 
 builder.Services.AddAuthentication(options =>
 {
@@ -62,8 +65,10 @@ builder.Services.AddScoped<NotificarCambioDelegate>(_ => (Tareas tarea) =>
 {
     Console.WriteLine($"[EVENT] Cambios en Tarea (ID: {tarea.Id}).");
 });
-
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 // 4. Registrar Repositorios y Servicios
+
 builder.Services.AddSingleton<ITaskQueue, TaskQueue>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -94,6 +99,7 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 });
+builder.Services.AddSignalR();
 
 // Construir la aplicación
 var app = builder.Build();
@@ -104,6 +110,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.MapHub<TaskHub>("/taskHub");
 
 app.UseCors("AllowAll"); // Habilitar CORS
 
