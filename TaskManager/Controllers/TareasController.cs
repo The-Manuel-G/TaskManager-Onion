@@ -72,17 +72,17 @@ namespace TaskManager.Controllers
         /// Agrega una nueva tarea de alta prioridad.
         /// </summary>
         [HttpPost("high-priority")]
-        public async Task<ActionResult<Response<string>>> AddHighPriorityTaskAsync([FromBody] string description)
+        public async Task<ActionResult<Response<string>>> AddHighPriorityTaskAsync([FromBody] TaskRequestDTO taskRequest)
         {
-            if (string.IsNullOrWhiteSpace(description))
+            if (taskRequest == null || string.IsNullOrWhiteSpace(taskRequest.Description) || taskRequest.UserId <= 0)
             {
-                _logger.LogWarning("Solicitud inválida: la descripción de la tarea está vacía.");
-                return BadRequest("La descripción de la tarea no puede estar vacía.");
+                _logger.LogWarning("Solicitud inválida: descripción de la tarea o ID de usuario no válido.");
+                return BadRequest("La descripción de la tarea y el ID de usuario no pueden estar vacíos.");
             }
 
             try
             {
-                var response = await _service.AddHighPriorityTaskAsync(description);
+                var response = await _service.AddHighPriorityTaskAsync(taskRequest.Description, taskRequest.UserId);
                 if (!response.Successful)
                 {
                     _logger.LogWarning($"Error al agregar la tarea de alta prioridad: {response.Message}");
@@ -103,17 +103,17 @@ namespace TaskManager.Controllers
         /// Agrega una nueva tarea de baja prioridad.
         /// </summary>
         [HttpPost("low-priority")]
-        public async Task<ActionResult<Response<string>>> AddLowPriorityTaskAsync([FromBody] string description)
+        public async Task<ActionResult<Response<string>>> AddLowPriorityTaskAsync([FromBody] TaskRequestDTO taskRequest)
         {
-            if (string.IsNullOrWhiteSpace(description))
+            if (taskRequest == null || string.IsNullOrWhiteSpace(taskRequest.Description) || taskRequest.UserId <= 0)
             {
-                _logger.LogWarning("Solicitud inválida: la descripción de la tarea está vacía.");
-                return BadRequest("La descripción de la tarea no puede estar vacía.");
+                _logger.LogWarning("Solicitud inválida: descripción de la tarea o ID de usuario no válido.");
+                return BadRequest("La descripción de la tarea y el ID de usuario no pueden estar vacíos.");
             }
 
             try
             {
-                var response = await _service.AddLowPriorityTaskAsync(description);
+                var response = await _service.AddLowPriorityTaskAsync(taskRequest.Description, taskRequest.UserId);
                 if (!response.Successful)
                 {
                     _logger.LogWarning($"Error al agregar la tarea de baja prioridad: {response.Message}");
@@ -136,15 +136,15 @@ namespace TaskManager.Controllers
         [HttpPost("custom")]
         public async Task<ActionResult<Response<string>>> AddCustomTaskAsync([FromBody] CustomTaskDTO customTask)
         {
-            if (customTask == null || string.IsNullOrWhiteSpace(customTask.Description))
+            if (customTask == null || string.IsNullOrWhiteSpace(customTask.Description) || customTask.UserId <= 0)
             {
-                _logger.LogWarning("Solicitud inválida: la tarea personalizada está vacía.");
-                return BadRequest("La tarea personalizada no puede estar vacía.");
+                _logger.LogWarning("Solicitud inválida: la tarea personalizada está vacía o el ID de usuario no es válido.");
+                return BadRequest("La tarea personalizada y el ID de usuario no pueden estar vacíos.");
             }
 
             try
             {
-                var response = await _service.AddCustomTaskAsync(customTask.Description, customTask.DueDate, customTask.AdditionalData);
+                var response = await _service.AddCustomTaskAsync(customTask.Description, customTask.DueDate, customTask.AdditionalData, customTask.UserId);
                 if (!response.Successful)
                 {
                     _logger.LogWarning($"Error al agregar la tarea personalizada: {response.Message}");
@@ -224,10 +224,17 @@ namespace TaskManager.Controllers
         }
     }
 
+    public class TaskRequestDTO
+    {
+        public string Description { get; set; }
+        public int UserId { get; set; }
+    }
+
     public class CustomTaskDTO
     {
         public string Description { get; set; }
         public DateTime DueDate { get; set; }
         public string AdditionalData { get; set; }
+        public int UserId { get; set; }
     }
 }
