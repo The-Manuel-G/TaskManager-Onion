@@ -133,6 +133,91 @@ namespace InfrastructureLayer
 
 ---
 
+
+# 🛠 TaskManager - Pruebas Implementadas
+
+Este documento describe las pruebas unitarias e integrales realizadas en el sistema **TaskManager** para validar su correcto funcionamiento.
+
+---
+
+## 📌 1. Tipos de Pruebas Realizadas
+
+### ✅ **Pruebas Unitarias**
+- **Objetivo:** Validar el funcionamiento de componentes individuales como servicios y repositorios.
+- **Herramientas utilizadas:** `xUnit`, `Moq`, `FluentAssertions`, `EntityFrameworkCore.InMemory`.
+
+### ✅ **Pruebas de Integración**
+- **Objetivo:** Evaluar la interacción entre componentes, simulando escenarios reales.
+- **Herramientas utilizadas:** `WebApplicationFactory`, `HttpClient`, `FluentAssertions`.
+
+---
+
+## 🔍 2. Cobertura de Pruebas
+
+### 🏗 **Pruebas Unitarias**
+
+#### 📝 **TaskServiceTests**
+- **Validación de la gestión de tareas.**
+- **Casos probados:**
+  - ✔ Crear una tarea con usuario válido devuelve éxito.
+  - ❌ Intentar crear una tarea con usuario inexistente debe fallar.
+  - 🔍 Obtener una tarea por ID debe devolver los datos correctos.
+
+#### 🔑 **AuthServiceTests**
+- **Validación del proceso de autenticación.**
+- **Casos probados:**
+  - ✔ Autenticación con credenciales válidas devuelve un JWT.
+  - ❌ Autenticación con credenciales incorrectas debe fallar.
+  - 🔄 Refrescar un token válido genera un nuevo JWT.
+
+#### 🔄 **RefreshTokenRepositoryTests**
+- **Gestión de tokens de actualización en la base de datos.**
+- **Casos probados:**
+  - ✔ Un token agregado debe poder recuperarse por su clave.
+  - ❌ Un token eliminado no debe estar disponible en la base de datos.
+
+#### 🔢 **TaskCalculationsTests**
+- **Validación del cálculo de porcentaje de tareas completadas.**
+- **Casos probados:**
+  - ✔ 50% de tareas completadas debe devolver `50.0`.
+  - ✔ 0% de tareas completadas debe devolver `0.0`.
+
+---
+
+### 🔄 **Pruebas de Integración**
+
+#### 🏛 **TaskManagerApiTests**
+- **Validación de la API REST.**
+- **Casos probados:**
+  - ✔ Inicio de sesión exitoso devuelve un `JWT`.
+  - ❌ Acceder a `/api/Tareas` sin autenticación devuelve `401 Unauthorized`.
+  - ✔ Acceder a `/api/Tareas` con un `JWT` válido devuelve `200 OK`.
+  - ❌ Intentar crear una tarea sin datos devuelve `400 Bad Request`.
+
+#### 🔑 **AuthControllerTests**
+- **Pruebas del flujo de autenticación desde la API.**
+- **Casos probados:**
+  - ✔ Login exitoso genera un token JWT.
+  - ❌ Usuario incorrecto devuelve `401 Unauthorized`.
+
+#### 👤 **UserControllerTests**
+- **Validación de la gestión de usuarios desde la API.**
+- **Casos probados:**
+  - ✔ Registrar un usuario nuevo.
+  - 🔄 Modificar información de un usuario existente.
+  - 🗑️ Eliminar un usuario y verificar que no pueda autenticarse.
+
+---
+
+## 🏗 3. Cómo Ejecutar las Pruebas
+
+### 🔹 **Ejecutar Pruebas Unitarias**
+Para ejecutar las pruebas unitarias, usa el siguiente comando:
+
+```sh
+dotnet test --filter FullyQualifiedName~TaskServiceTests
+
+
 ## 📌 **Conclusión**
 ✅ **Ahora puedes clonar, configurar y ejecutar el proyecto fácilmente.**  
 ✅ **El proyecto está listo para usarse con EF Core Code First.**  
@@ -143,6 +228,8 @@ namespace InfrastructureLayer
 
 
 ---
+
+
 
 ## 🚀 **¿Qué incluye este `README.md`?**
 ✅ **Instrucciones claras para instalar dependencias y configurar el entorno.**  
