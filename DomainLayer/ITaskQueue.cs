@@ -8,7 +8,6 @@ namespace DomainLayer
 {
         public interface ITaskQueue
         {
-            // Cambiamos la firma para que reciba un IServiceProvider
             void Enqueue(Func<IServiceProvider, Task> task);
             Task DequeueAsync();
         }
